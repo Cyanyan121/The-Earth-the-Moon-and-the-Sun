@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>The Earth, the Moon and the Sun</title>
+
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+
+    <link
+      href="https://fonts.googleapis.com/css?family=Roboto+Condensed"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+
+    <script src="twgl-full.js"></script>
+    <script src="trackball.js"></script>
+    <script src="matrixstack.js"></script>
+
+    <script id="vertex-shader" type="x-shader/x-vertex">
+      precision mediump int;
+
+      // This are the common attribute variables
+      attribute vec3 a_position;
+      attribute vec3 a_normal;
+
+      // The incoming texture coordinates
+      attribute vec2 a_texcoord;
+
+      // The incoming tangent vector
+      attribute vec3 a_tangent;
+
+      // The transformation matrices
+      uniform mat4 u_ModelViewMatrix;
+      uniform mat4 u_NormalMatrix;
+      uniform mat4 u_ModelViewProjMatrix;
+
+      // The varying variables for Phong shading
+      varying vec3 v_Vertex;
+      varying vec3 v_Normal;
+
+      // The outgoing texture coordinates
+      varying vec2 v_TexCoord;
+
+      // The outgoing TBN transformation matrix for normal mapping
+      varying mat3 v_TBNMatrix;
+
+      // The drawing target
+      // 1: Sun, 2: Earth, 3: Moon, 4: Sun's outer glow
+      uniform int u_Target;
+
+      void main() {
+          // Calculate the eye coordinates
+          v_Vertex = (u_ModelViewMatrix * vec4(a_position, 1)).xyz;
+          v_Normal = normalize(mat3(u_NormalMatrix) * a_normal);
+
+          // Output the texture coordinates
+
+          /*** Add your code here ***/
+          v_TexCoord = a_texcoord;
+
+          /*
+           * TODO: Task 7
+           * For the Moon, you will need to find:
+           * 1. The T, B and N vectors
+           * 2. The T, B and N vectors in the eye space
+           * 3. The TBN matrix
+           */
+          if (u_Target == 3) {
+
+              /*** Add your code here ***/
+              vec3 N = v_Normal;
+              vec3 T = normalize(mat3(u_NormalMatrix)*a_tangent);
+              vec3 B = cross(N,T);
+
+              v_TBNMatrix = mat3(T,B,N);
+
+          }
+
+          // Output the vertex position in clip space
+          gl_Position = u_ModelViewProjMatrix * vec4(a_position, 1);
+      }
+    </script>
+
+    <script id="fragment-shader" type="x-shader/x-fragment">
+      precision mediump float;
+      precision mediump int;
+
+      // The light position
+      uniform vec3 u_LightPos;
+
+      // The incoming varying variables for Phong shading
+      varying vec3 v_Vertex;
+      varying vec3 v_Normal;
+
+      // The incoming texture coordinates
+      varying vec2 v_TexCoord;
+
+      // The incoming TBN matrix
+      varying mat3 v_TBNMatrix;
+
+      // The texture map containing the colour texture
+      uniform sampler2D u_ColorMap;
+
+      // The texture map containing the cloud texture (for the Earth only)
+      uniform sampler2D u_CloudMap;
+
+      // The texture map containing the normal map (for the Moon only)
+      uniform sampler2D u_NormalMap;
+
+      // The drawing target
+      // 1: Sun, 2: Earth, 3: Moon, 4: Sun's outer glow
+      uniform int u_Target;
+
+      void main() {
+          // Find the relevant vectors for lighting calculation in eye space
+          vec3 lightDir = normalize(u_LightPos - v_Vertex.xyz);
+          vec3 viewDir = normalize(-v_Vertex.xyz);
+          vec3 normal = normalize(v_Normal);
+
+          // This is the Sun
+          if (u_Target == 1) {
+              // The Sun has a colour map and a burning colour near the silhouette
+
+              /*
+               * TODO: Task 5
+               * Adjust the following code to include the two components of Sun colour
+               */
+
+              gl_FragColor = vec4(vec3(1, 1, 1), 1);
+              gl_FragColor *= texture2D(u_ColorMap, v_TexCoord);
+              float dotProduct = dot(viewDir, normal);
+              float mindotProduct = 1.0-dotProduct;
+              gl_FragColor += vec4(0,0,0,1)+vec4(1,0.5,0,1)*(mindotProduct);
+          }
+          else
+
+          // This is the Earth
+          if (u_Target == 2) {
+              // Find the diffuse component
+              vec3 diffuse = vec3(0);
+              float dotProduct = dot(lightDir, normal);
+              if (dotProduct > 0.0) diffuse = vec3(dotProduct);
+
+              /*
+               * TODO: Task 6
+               * Adjust the following code to include the colour and cloud map
+               */
+
+               gl_FragColor = vec4(diffuse, 1);
+               gl_FragColor = gl_FragColor*(texture2D(u_ColorMap, v_TexCoord)*(vec4(1,1,1,1)-texture2D(u_CloudMap, v_TexCoord))+vec4(1,1,1,1)*texture2D(u_CloudMap, v_TexCoord));
+          }
+          else
+
+          // This is the Moon
+          if (u_Target == 3) {
+              /*
+               * TODO: Task 7
+               * You will need to retrieve and transform the normal, i.e:
+               * 1. Retrieve and restore the normal from the normal map
+               * 2. Transform the normal using the TBN matrix
+               */
+
+              // Get the normal from the normal map
+
+              /*** Add your code here ***/
+              normal = texture2D(u_NormalMap,v_TexCoord).rgb;
+
+              // Transform the normal to the eye space
+
+              /*** Add your code here ***/
+              normal = normalize(normal*2.0-1.0);
+              normal = normalize(v_TBNMatrix*normal);
+
+
+              // Find the diffuse component
+              vec3 diffuse = vec3(0);
+              float dotProduct = dot(lightDir, normal);
+              if (dotProduct > 0.0) diffuse = vec3(dotProduct);
+
+              /*** Adjust the following code to include the colour map ***/
+              gl_FragColor = vec4(diffuse, 1);
+              gl_FragColor *= texture2D(u_ColorMap, v_TexCoord);
+          }
+          else
+
+          // This is the Sun's outer glow
+          if (u_Target == 4) {
+
+              /*
+               * TODO: Task 5
+               * Adjust the following code to work with the Sun's outer glow
+               */
+                float dis = dot(v_TexCoord-0.5,v_TexCoord-0.5);
+                float alpha = 1.0 - 2.0*sqrt(dis);
+                gl_FragColor=vec4(vec3(1,0.5,0),alpha);
+          }
+      }
+    </script>
+    <script>
+      var v3 = twgl.v3,
+        m4 = twgl.m4,
+        primitives = twgl.primitives;
+
+      // Sun's parameters
+      var sunInfo = { colorMap: null, angle: 0 };
+
+      // Earth's parameters
+      var earthInfo = { colorMap: null, cloudMap: null, angle: 0, orbit: 0 };
+
+      // Moon's parameters
+      var moonInfo = { colorMap: null, normalMap: null, orbit: 0 };
+
+      // Camera control
+      var cameraPos = 1; // 1: Sun, 2: Earth, 3: Moon
+
+      // Animation control
+      var animate = false;
+      var animateSpeed = 1.0;
+
+      var gl;
+      var programInfo;
+      var sphere, outerGlow;
+      var projMatrix, viewMatrix;
+      var uniforms = {};
+
+      var mouseInfo = {
+        motion: false,
+        pos: [0, 0],
+        quat: trackball.create(0, 0, 0, 0),
+        zoomFactor: 1.0,
+      };
+
+      function createSphereTangents(
+        arrays,
+        subdivisionsAxis,
+        subdivisionsHeight
+      ) {
+        // Calculate the tangents of each sphere position
+        var numVertices = (subdivisionsAxis + 1) * (subdivisionsHeight + 1);
+        var tangents = primitives.createAugmentedTypedArray(3, numVertices);
+        for (var y = 0; y <= subdivisionsHeight; y++) {
+          for (var x = 0; x <= subdivisionsAxis; x++) {
+            var u = x / subdivisionsAxis;
+            var v = y / subdivisionsHeight;
+            var theta = 2 * Math.PI * u;
+            var phi = Math.PI * v;
+            var sinTheta = Math.sin(theta);
+            var cosTheta = Math.cos(theta);
+            var sinPhi = Math.sin(phi);
+            var cosPhi = Math.cos(phi);
+            var ux = cosTheta * sinPhi;
+            var uz = sinTheta * sinPhi;
+            if (ux * uz < 0.001) tangents.push(sinTheta, 0, -cosTheta);
+            else tangents.push(uz, 0, -ux);
+          }
+        }
+        arrays.tangent = tangents;
+      }
+
+      function initMouseEvents() {
+        // Set up the mouse events for the canvas area
+        gl.canvas.addEventListener("mousedown", function (event) {
+          if (event.button == 0) {
+            var rect = gl.canvas.getBoundingClientRect();
+            mouseInfo.pos = [
+              (2 * (event.clientX - rect.left)) / gl.canvas.width - 1,
+              (2 * (event.clientY - rect.top)) / gl.canvas.height - 1,
+            ];
+            if (event.ctrlKey) mouseInfo.motion = "zoom";
+            else mouseInfo.motion = "trackball";
+          }
+        });
+        gl.canvas.addEventListener("mouseup", function (event) {
+          if (event.button == 0) mouseInfo.motion = false;
+        });
+        gl.canvas.addEventListener("mouseout", function (event) {
+          mouseInfo.motion = false;
+        });
+        gl.canvas.addEventListener("mousemove", function (event) {
+          if (mouseInfo.motion) {
+            var rect = gl.canvas.getBoundingClientRect();
+            var pos = [
+              (2 * (event.clientX - rect.left)) / gl.canvas.width - 1,
+              (2 * (event.clientY - rect.top)) / gl.canvas.height - 1,
+            ];
+            switch (mouseInfo.motion) {
+              case "trackball":
+                var dq = trackball.create(
+                  mouseInfo.pos[0],
+                  -mouseInfo.pos[1],
+                  pos[0],
+                  -pos[1]
+                );
+                mouseInfo.quat = trackball.addQuats(dq, mouseInfo.quat);
+                break;
+              case "zoom":
+                mouseInfo.zoomFactor +=
+                  ((pos[1] - mouseInfo.pos[1]) / gl.canvas.height) * 500;
+            }
+            mouseInfo.pos = pos;
+          }
+        });
+      }
+
+      function initKeyEvents() {
+        // Set up the key events
+        document.addEventListener("keydown", function (event) {
+          switch (event.key) {
+            case "1": // Look at the Sun
+              cameraPos = 1;
+              break;
+            case "2": // Look at the Earth
+              cameraPos = 2;
+              break;
+            case "3": // Look at the Moon
+              cameraPos = 3;
+              break;
+            case " ": // Animate on/off
+              animate = !animate;
+              break;
+            case "+": // Increase animate speed
+              animateSpeed += 0.1;
+              break;
+            case "-": // Decrease animate speed
+              animateSpeed -= 0.1;
+              if (animateSpeed < 0.1) animateSpeed = 0.1;
+              break;
+          }
+        });
+      }
+
+      function initWebGL() {
+        // Get the WebGL context
+        gl = twgl.getWebGLContext(document.getElementById("webgl_canvas"));
+
+        // Initialize the WebGL environment
+        if (gl) {
+          gl.clearColor(0, 0, 0, 1);
+
+          gl.enable(gl.DEPTH_TEST);
+          gl.depthFunc(gl.LEQUAL);
+          gl.enable(gl.CULL_FACE);
+
+          // Create the programs
+          programInfo = twgl.createProgramInfo(gl, [
+            "vertex-shader",
+            "fragment-shader",
+          ]);
+          gl.useProgram(programInfo.program);
+
+          // Create the primitives
+          twgl.setDefaults({ attribPrefix: "a_" });
+          var arrays = primitives.createSphereVertices(1, 50, 50);
+          createSphereTangents(arrays, 50, 50);
+          sphere = twgl.createBufferInfoFromArrays(gl, arrays);
+          outerGlow = primitives.createXYQuadBufferInfo(gl, 250);
+
+          // Create the textures
+          sunInfo.colorMap = twgl.createTexture(gl, { src: "sunmap.png" });
+          earthInfo.colorMap = twgl.createTexture(gl, { src: "earthmap.png" });
+          earthInfo.cloudMap = twgl.createTexture(gl, { src: "cloudmap.png" });
+          moonInfo.colorMap = twgl.createTexture(gl, { src: "moonmap.png" });
+          moonInfo.normalMap = twgl.createTexture(gl, { src: "normalmap.png" });
+
+          // Initialize the mouse and keys
+          initMouseEvents();
+          initKeyEvents();
+
+          // Clear the matrix stack
+          matrixstack.clear();
+
+          // Update the canvas content
+          window.requestAnimationFrame(render);
+        }
+      }
+
+      function setupCamera() {
+        /*
+         * TODO: Task 3
+         * You need to set up the camera so that you can look at the Sun, the
+         * Earth or the Moon by pressing the number 1, 2 or 3 respectively
+         */
+
+        var zoom = 500; // This number is used for viewing the Sun only
+        // You need to adjust this if you are viewing the
+        // Earth or the Moon
+
+        // Start the camera setup
+        matrixstack.push();
+
+        // Move along the hierarchical structure for the target indicated by
+        // cameraPos:
+        // 1 means Sun, 2 means Earth, 3 means Moon
+
+        /*** Add your code here ***/
+        if (cameraPos == 1) {
+          zoom = 500;
+          matrixstack.multiply(m4.translation([0, 0, 0]));
+        }
+        if (cameraPos == 2) {
+          zoom = 50;
+          matrixstack.multiply(m4.rotationY(earthInfo.orbit));
+          matrixstack.multiply(m4.translation([500, 0, 0]));
+        }
+        if (cameraPos == 3) {
+          zoom = 5;
+          matrixstack.multiply(m4.rotationY(earthInfo.orbit));
+          matrixstack.multiply(m4.translation([500, 0, 0]));
+          matrixstack.multiply(m4.rotationY(moonInfo.orbit));
+          matrixstack.multiply(m4.translation([20, 0, 0]));
+        }
+
+        // Setup the look at
+        var modelMatrix = matrixstack.top();
+
+        // Find the camera position and direction from the hierarchical structure
+        var from = m4.transformPoint(modelMatrix, [
+          0,
+          0,
+          zoom * mouseInfo.zoomFactor,
+        ]);
+        var to = m4.transformPoint(modelMatrix, [0, 0, 0]);
+
+        // Make the view matrix with a lookAt and the trackball rotation
+        var lookAt = m4.lookAt(from, to, [0, 1, 0]);
+        viewMatrix = m4.multiply(m4.inverse(lookAt), m4.translation(to));
+        viewMatrix = m4.multiply(
+          viewMatrix,
+          trackball.buildMatrix(mouseInfo.quat)
+        );
+        viewMatrix = m4.multiply(viewMatrix, m4.translation(m4.negate(to)));
+
+        matrixstack.pop();
+      }
+
+      function setupMatrices() {
+        /*
+         * TODO: Task 4
+         * You need to setup the light position correctly so that the light is
+         * coming from the center of the Sun, i.e. (0, 0, 0)
+         */
+
+        // Compute the current matrices
+        var modelMatrix = matrixstack.top();
+        var modelViewMatrix = m4.multiply(viewMatrix, modelMatrix);
+        var normalMatrix = m4.inverse(m4.transpose(modelViewMatrix));
+        var modelViewProjMatrix = m4.multiply(projMatrix, modelViewMatrix);
+
+        // Set up the uniforms
+        uniforms.u_ModelViewMatrix = modelViewMatrix;
+        uniforms.u_NormalMatrix = normalMatrix;
+        uniforms.u_ModelViewProjMatrix = modelViewProjMatrix;
+
+        // Set the light position
+        // At the moment, it is a headlight
+
+        /*** Change the following code to set up the light at the Sun position ***/
+        // uniforms.u_LightPos = [0, 0, 0];
+        uniforms.u_LightPos = m4.transformPoint(viewMatrix, [0, 0, 0]);
+      }
+
+      function drawSun() {
+        /*
+         * TODO: Task 2
+         * You need to apply appropriate model transformation to the Earth
+         */
+
+        matrixstack.push();
+
+        // Apply model transformations
+        // matrixstack.multiply(m4.scaling([100, 100, 100]));
+
+        /* The code to scale the Sun using the correct size has been given */
+
+        /*** Apply your code here ***/
+        matrixstack.multiply(m4.rotationY(sunInfo.angle));
+        matrixstack.multiply(m4.scaling([100, 100, 100]));
+
+        // Set up matrices and uniforms
+        setupMatrices();
+        uniforms.u_ColorMap = sunInfo.colorMap;
+        uniforms.u_Target = 1;
+        twgl.setUniforms(programInfo, uniforms);
+
+        // Draw a sphere
+        twgl.setBuffersAndAttributes(gl, programInfo, sphere);
+        twgl.drawBufferInfo(gl, sphere);
+
+        matrixstack.pop();
+      }
+
+      function drawEarth() {
+        /*
+         * TODO: Task 2
+         * You need to apply appropriate model transformation to the Earth
+         */
+
+        matrixstack.push();
+
+        // Apply model transformations
+
+        /*** Add your code here ***/
+        matrixstack.multiply(m4.scaling([10, 10, 10]));
+        matrixstack.multiply(m4.rotationY(earthInfo.angle));
+
+        // Set up matrices and uniforms
+        setupMatrices();
+        uniforms.u_ColorMap = earthInfo.colorMap;
+        uniforms.u_CloudMap = earthInfo.cloudMap;
+        uniforms.u_Target = 2;
+        twgl.setUniforms(programInfo, uniforms);
+
+        // Draw a sphere
+        twgl.setBuffersAndAttributes(gl, programInfo, sphere);
+        twgl.drawBufferInfo(gl, sphere);
+
+        matrixstack.pop();
+      }
+
+      function drawMoon() {
+        matrixstack.push();
+
+        // Set up matrices and uniforms
+        setupMatrices();
+        uniforms.u_ColorMap = moonInfo.colorMap;
+        uniforms.u_NormalMap = moonInfo.normalMap;
+        uniforms.u_Target = 3;
+        twgl.setUniforms(programInfo, uniforms);
+
+        // Draw a sphere
+        twgl.setBuffersAndAttributes(gl, programInfo, sphere);
+        twgl.drawBufferInfo(gl, sphere);
+
+        matrixstack.pop();
+      }
+
+      function drawOuterGlow() {
+        matrixstack.push();
+
+        // Apply model transformations
+        var from = m4.transformPoint(m4.inverse(viewMatrix), [0, 0, 0]);
+        var lookAt = m4.lookAt([0, 0, 0], m4.negate(from), [0, 1, 0]);
+        matrixstack.multiply(lookAt);
+
+        // Set up matrices and uniforms
+        setupMatrices();
+        uniforms.u_Target = 4;
+        twgl.setUniforms(programInfo, uniforms);
+
+        /*
+         * TODO: Task 5
+         * You need to make sure blend mode is enabled if you are going to use
+         * alpha values, and you also need to disable blend mode when things
+         * get back to normal
+         */
+
+        /*** Add your code here ***/
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        gl.depthMask(false);
+
+        twgl.setBuffersAndAttributes(gl, programInfo, outerGlow);
+        twgl.drawBufferInfo(gl, outerGlow);
+        gl.depthMask(true);
+
+        matrixstack.pop();
+      }
+
+      function drawSystem() {
+        /*
+         * TODO: Task 1
+         * You need to put the Sun, Earth and Moon in a hierarchical structure
+         * so that they are in an appropriate structure for the animation
+         */
+
+        // Start drawing the objects
+        matrixstack.push();
+
+        /*** Adjust the following code to make the hierarchical structure ***/
+        drawSun();
+
+        /*** Add your code here ***/
+        matrixstack.push();
+        matrixstack.multiply(m4.rotationY(earthInfo.orbit));
+        matrixstack.multiply(m4.translation([500, 0, 0]));
+        drawEarth();
+
+        /*** Add your code here ***/
+        matrixstack.push();
+        matrixstack.multiply(m4.rotationY(moonInfo.orbit));
+        matrixstack.multiply(m4.translation([20, 0, 0]));
+        drawMoon();
+        matrixstack.pop();
+
+        /*
+         * TODO: Task 5
+         * You need to draw the outer glow using the quadrilateral
+         * You have to think about the content of the model matrix when you
+         * draw the outer glow
+         */
+
+        /*** Add your code here ***/
+
+        matrixstack.pop();
+        drawOuterGlow();
+      }
+
+      function animateSystem() {
+        /*
+         * TODO: Task 2
+         * You need to animate the system by changing the parameters of the
+         * Earth, Moon and Sun
+         * The parameters are stored in sunInfo, earthInfo and moonInfo
+         * You would adjust the animation speed using animateSpeed
+         */
+        // Update the Sun's information
+        /*** Add your code here ***/
+        sunInfo.angle =
+          sunInfo.angle + (1.0 / (60 * 25)) * 2 * Math.PI * animateSpeed;
+        // Update the Earth's information
+        /*** Add your code here ***/
+        earthInfo.angle =
+          earthInfo.angle + (1.0 / 60) * 2 * Math.PI * animateSpeed;
+        earthInfo.orbit =
+          earthInfo.orbit + (1.0 / (60 * 365.25)) * 2 * Math.PI * animateSpeed;
+        // Update the Moon's information
+        /*** Add your code here ***/
+        moonInfo.orbit =
+          moonInfo.orbit + (1.0 / (60 * 27)) * 2 * Math.PI * animateSpeed;
+      }
+
+      function render() {
+        // Fix the canvas and viewport size
+        var w = gl.canvas.clientWidth,
+          h = gl.canvas.clientHeight;
+        if (gl.canvas.width != w || gl.canvas.height != h) {
+          gl.canvas.width = w;
+          gl.canvas.height = h;
+          gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+        }
+
+        // Clear the area
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        // Set up the perspective projection
+        projMatrix = m4.perspective(
+          (45 * Math.PI) / 180,
+          gl.canvas.width / gl.canvas.height,
+          0.1,
+          5000
+        );
+
+        // Set up the viewing transformation
+        setupCamera();
+
+        // Draw the whole system
+        drawSystem();
+
+        // Animate the parameters
+        if (animate) animateSystem();
+
+        window.requestAnimationFrame(render);
+      }
+    </script>
+  </head>
+  <body onload="initWebGL()">
+    <canvas id="webgl_canvas"></canvas>
+    <div id="information">
+      <b>Keys:</b><br />
+      <table>
+        <tr>
+          <td>'1'</td>
+          <td>- Camera on the Sun</td>
+        </tr>
+        <tr>
+          <td>'2'</td>
+          <td>- Camera on the Earth</td>
+        </tr>
+        <tr>
+          <td>'3'</td>
+          <td>- Camera on the Moon</td>
+        </tr>
+        <tr>
+          <td>Spacebar</td>
+          <td>- Start/stop the animation</td>
+        </tr>
+        <tr>
+          <td>'+' / '-'</td>
+          <td>- Increase/decrease animation speed</td>
+        </tr>
+      </table>
+    </div>
+  </body>
+</html>
